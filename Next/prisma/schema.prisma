@@ -1,0 +1,358 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model Product {
+  id                String            @id @default(cuid()) @db.VarChar(25)
+  title             String
+  slug              String            @unique
+  price             Int
+  quantity          Int
+  stockAvailability Boolean?          @default(true)
+  thumbnail         String
+  description       String
+  content           String?
+  status            Status            @default(Enabled)
+  visibility        ProductVisibility @default(Visible)
+
+  metadata   ProductMetadata? @relation(fields: [metadataId], references: [id])
+  metadataId String?          @db.VarChar(25)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId String?   @db.VarChar(25)
+
+  orders OrderProduct[]
+
+  media   ProductMedia? @relation(fields: [mediaId], references: [id])
+  mediaId Int?
+
+  attributeGroup   ProductAttributeGroup? @relation(fields: [attributeGroupId], references: [id])
+  attributeGroupId String?                @db.VarChar(25)
+
+  variants ProductVariant[]
+
+  @@map("products")
+}
+
+model ProductMedia {
+  id      Int       @id @default(autoincrement())
+  Product Product[]
+
+  datatype String
+  path     String
+  width    Int
+  height   Int
+  size     Int?
+  caption  String?
+  keywords String?
+
+  @@map("product_medias")
+}
+
+model ProductMetadata {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  metaTitle       String?
+  metaKeyword     String?
+  metaDescription String?
+
+  Product Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([id])
+  @@map("product_metadatas")
+}
+
+enum Status {
+  Enabled
+  Disabled
+}
+
+enum ProductVisibility {
+  Visible
+  NotVisible
+}
+
+enum ProductStockAvailability {
+  Yes
+  No
+}
+
+model Category {
+  id          String  @id @default(cuid()) @db.VarChar(25)
+  name        String
+  slug        String  @db.Text
+  banner      String?
+  description String?
+  status      Status  @default(Enabled)
+
+  metadata   CategoryMetadata? @relation(fields: [metadataId], references: [id])
+  metadataId String?           @db.VarChar(25)
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([id])
+  @@map("categories")
+}
+
+model CategoryMetadata {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  metaTitle       String?
+  metaKeyword     String?
+  metaDescription String?
+
+  Category Category[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([id])
+  @@map("category_metadatas")
+}
+
+model Collection {
+  id          String  @id @default(cuid()) @db.VarChar(25)
+  name        String
+  slug        String
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("collections")
+}
+
+model User {
+  id   String @id @unique @default(cuid()) @db.VarChar(25)
+  code String @unique @db.Char(16)
+
+  firstName      String
+  lastName       String
+  email          String @unique
+  passwordHashed String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  role   Role   @relation(fields: [roleId], references: [id])
+  roleId String @db.VarChar(25)
+
+  @@index([id, code])
+  @@map("users")
+}
+
+model Coupon {
+  id             Int          @id @default(autoincrement()) @db.Int
+  code           String       @db.Char(24)
+  discountType   DiscountType
+  discountAmount Int          @db.Int
+  description    String?
+  startDate      DateTime     @default(now())
+  endDate        DateTime     @default(now())
+  status         Status
+
+  isFreeshipping Boolean? @default(false)
+  usedTimes      Int?     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("coupons")
+}
+
+enum DiscountType {
+  Percent
+  Price
+}
+
+model Order {
+  id          Int    @id @default(autoincrement()) @db.Int
+  orderNumber String @unique @db.Char(16)
+
+  customerId    String  @unique
+  customerEmail String
+  customerPhone String?
+  customerNote  String?
+
+  shipmentStatus OrderShipmentStatus @default(Unfullfilled)
+  paymentStatus  OrderPaymentStatus  @default(Unpaid)
+
+  orderCouponCode     String
+  orderDiscount       Int    @default(0)
+  orderTotalAmount    Int    @default(0)
+  orderSubTotalAmount Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products OrderProduct[]
+
+  @@map("orders")
+}
+
+enum OrderShipmentStatus {
+  Unfullfilled
+  Fullfilled
+}
+
+enum OrderPaymentStatus {
+  Unpaid
+  Paid
+  Refunded
+}
+
+model OrderProduct {
+  id Int @id @default(autoincrement()) @db.Int
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId String  @db.VarChar(25)
+
+  order   Order @relation(fields: [orderId], references: [id])
+  orderId Int   @db.Int
+
+  productAmount Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("order_products")
+}
+
+model ProductAttribute {
+  id        String                   @id @default(cuid()) @db.VarChar(25)
+  name      String
+  code      String                   @unique
+  options   ProductAttributeOption[]
+  sortOrder Int                      @db.Int
+
+  isRequired       Boolean @default(true)
+  isFilterable     Boolean @default(true)
+  isShowToCustomer Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  groups                   ProductAttributesOnGroups[]
+  productVariantAttributes ProductVariantAttribute[]
+
+  @@map("product_attributes")
+}
+
+model ProductAttributeOption {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  name String
+  code String
+
+  attribute   ProductAttribute @relation(fields: [attributeId], references: [id])
+  attributeId String           @db.VarChar(25)
+
+  productVariantAttributes ProductVariantAttribute[]
+
+  @@map("product_attribute_options")
+}
+
+model ProductAttributeGroup {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  name String @db.VarChar(50)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attributes ProductAttributesOnGroups[]
+  Product    Product[]
+
+  @@map("product_attribute_groups")
+}
+
+model ProductAttributesOnGroups {
+  productAttribute   ProductAttribute @relation(fields: [productAttributeId], references: [id])
+  productAttributeId String           @db.VarChar(25)
+
+  productAttributeGroup   ProductAttributeGroup @relation(fields: [productAttributeGroupId], references: [id])
+  productAttributeGroupId String                @db.VarChar(25)
+
+  @@id([productAttributeId, productAttributeGroupId])
+  @@map("product_attributes_on_groups")
+}
+
+model ProductVariant {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  photo             String?
+  quantity          Int     @default(0)
+  SKU               String? @unique
+  stockAvailability Boolean @default(true)
+  visible           Boolean @default(true)
+  price             Float   @default(0.0) @db.Double
+
+  productId String?  @db.VarChar(25)
+  product   Product? @relation(fields: [productId], references: [id])
+
+  attributes ProductVariantAttribute[]
+
+  @@map("product_variants")
+}
+
+model ProductVariantAttribute {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  productVariantId String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  productAttributeId String?
+  productAttribute   ProductAttribute? @relation(fields: [productAttributeId], references: [id])
+
+  productAttributeOptionId String
+  productAttributeOption   ProductAttributeOption @relation(fields: [productAttributeOptionId], references: [id])
+
+  @@map("product_variant_attributes")
+}
+
+enum RoleScope {
+  Storefront
+  Admin
+}
+
+model Role {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  name        String
+  description String?
+
+  privileges Json?  @db.Json
+  users      User[]
+
+  scope   RoleScope
+  Setting Setting[]
+
+  @@map("roles")
+}
+
+model Setting {
+  id String @id @default(cuid()) @db.VarChar(25)
+
+  autoAssignStorefrontRole   Role   @relation(fields: [autoAssignStorefrontRoleId], references: [id])
+  autoAssignStorefrontRoleId String @db.VarChar(25)
+
+  @@map("settings")
+}
